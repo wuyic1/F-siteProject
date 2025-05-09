@@ -1,0 +1,66 @@
+# TrfmconfigM2.yaml
+
+## Where the samples will be written
+save_data: ./Vocab/example
+## Where the vocab(s) will be written
+src_vocab: ./Vocab/example/example.vocab.src
+tgt_vocab: ./Vocab/example/example.vocab.tgt
+# Prevent overwriting existing files in the folder
+overwrite: False
+
+# Corpus opts:
+data:
+    corpus_1:
+        path_src: ./token/train_m2_src.txt
+        path_tgt: ./token/train_m2_tgt.txt
+    valid:
+        path_src: ./token/valid_m2_src.txt
+        path_tgt: ./token/valid_m2_tgt.txt
+# TrfmconfigM2.yaml
+
+save_model: ./M2Trfm_directory/model
+log_file: ./M2Trfm_directory/train.log
+save_checkpoint_steps: 10000
+keep_checkpoint: 10
+seed: 3435
+train_steps: 200000
+valid_steps: 10000
+report_every: 100
+# Stop training if it does not imporve after n validations
+early_stopping: 5
+warmup_steps: 4000
+
+decoder_type: transformer
+encoder_type: transformer
+word_vec_size: 256
+hidden_size: 256
+layers: 6
+transformer_ff: 2048
+heads: 8
+
+accum_count: 8
+optim: adam
+adam_beta1: 0.9
+adam_beta2: 0.998
+decay_method: noam
+learning_rate: 2.0
+max_grad_norm: 1.0
+
+batch_size: 1024
+batch_type: tokens
+normalization: tokens
+dropout: 0.1
+label_smoothing: 0.1
+
+param_init: 0.0
+param_init_glorot: 'true'
+position_encoding: 'true'
+
+world_size: 1
+gpu_ranks:
+- 0
+
+
+
+
+
