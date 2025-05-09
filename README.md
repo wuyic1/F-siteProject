@@ -1,6 +1,6 @@
 ## F-site Model: A Transformer-based Molecular Generative Model for Fluorinated Molecular Design
 
-This repository contains code and instructions for training and using the F-site model, a Transformer-based generative model specifically designed for the creation and modification of fluorinated molecular structures.
+This repository contains code and instructions for training and using the F-site model, which is a Transformer-based molecular fluorine modification model used to predict the fluorine substitution points of small molecule compounds.
 
 ### Package Installation
 
