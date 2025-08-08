@@ -11,8 +11,35 @@ overwrite: False
 # Corpus opts:
 data:
     corpus_1:
-        path_src: ./token/train_m2_src.txt
-        path_tgt: ./token/train_m2_tgt.txt
+        path_src: ./token(-CF2-)/train_m2_src.txt
+        path_tgt: ./token(-CF2-)/train_m2_tgt.txt
+    corpus_2:
+        path_src: ./token(-CF2H)/train_m2_src.txt
+        path_tgt: ./token(-CF2H)/train_m2_tgt.txt
+    corpus_3:
+        path_src: ./token(-CF3)/train_m2_src.txt
+        path_tgt: ./token(-CF3)/train_m2_tgt.txt
+    corpus_4:
+        path_src: ./token(-CFH-)/train_m2_src.txt
+        path_tgt: ./token(-CFH-)/train_m2_tgt.txt
+    corpus_5:
+        path_src: ./token(-CFH2)/train_m2_src.txt
+        path_tgt: ./token(-CFH2)/train_m2_tgt.txt
+    corpus_6:
+        path_src: ./token(-F)/train_m2_src.txt
+        path_tgt: ./token(-F)/train_m2_tgt.txt
+    corpus_7:
+        path_src: ./token(-OCF2H)/train_m2_src.txt
+        path_tgt: ./token(-OCF2H)/train_m2_tgt.txt
+    corpus_8:
+        path_src: ./token(-OCF3)/train_m2_src.txt
+        path_tgt: ./token(-OCF3)/train_m2_tgt.txt
+    corpus_9:
+        path_src: ./token(-SCF2H)/train_m2_src.txt
+        path_tgt: ./token(-SCF2H)/train_m2_tgt.txt
+    corpus_10:
+        path_src: ./token(-SCF3)/train_m2_src.txt
+        path_tgt: ./token(-SCF3)/train_m2_tgt.txt
     valid:
         path_src: ./token/valid_m2_src.txt
         path_tgt: ./token/valid_m2_tgt.txt
@@ -22,12 +49,12 @@ save_model: ./M2Trfm_directory/model
 log_file: ./M2Trfm_directory/train.log
 save_checkpoint_steps: 10000
 keep_checkpoint: 10
-seed: 3435
-train_steps: 200000
+seed: 42     #seed:123, 456
+train_steps: 100000
 valid_steps: 10000
 report_every: 100
 # Stop training if it does not imporve after n validations
-early_stopping: 5
+early_stopping: 4
 warmup_steps: 4000
 
 decoder_type: transformer

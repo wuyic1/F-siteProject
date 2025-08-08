@@ -22,12 +22,12 @@ save_model: ./M1Trfm_directory/model
 log_file: ./M1Trfm_directory/train.log
 save_checkpoint_steps: 10000
 keep_checkpoint: 10
-seed: 3435
-train_steps: 200000
+seed: 42     #seed:123, 456
+train_steps: 100000
 valid_steps: 10000
 report_every: 100
 # Stop training if it does not imporve after n validations
-early_stopping: 5
+early_stopping: 4
 warmup_steps: 4000
 
 decoder_type: transformer

@@ -1,51 +1,50 @@
-import glob
 from multiprocessing import Pool, cpu_count
 from tqdm import tqdm
-import re
+import logging
+import time
 from pathlib import Path
-import sys # For printing info/errors
-
-# --- Configuration ---
-# Input directory: Contains the raw .src and .tgt files (e.g., from Random or Scaffold split)
-INPUT_DIR = Path("/sampled_data/Scaffold") # ADJUST PATH
-# Output directory: Where the tokenized files will be saved
-OUTPUT_DIR = Path("/sampled_data/Scaffold/token") # ADJUST PATH
-# Vocabulary file path (must exist)
-VOCAB_FILE = Path("/run_directory/shared.vocab") # ADJUST PATH
-# --- End Configuration ---
-
-
-# --- Load Vocabulary ---
-def load_vocab(vocab_path):
-    """Loads vocabulary from a file, returning a list sorted by length descending."""
-    if not vocab_path.is_file():
-        print(f"Error: Vocabulary file not found: {vocab_path}", file=sys.stderr)
-        return None
-    try:
-        with open(vocab_path, 'r', encoding='utf-8') as f:
-            # Read lines, strip whitespace, filter empty lines
-            vocab_list = [line.strip() for line in f if line.strip()]
-        print(f"Loaded {len(vocab_list)} tokens from {vocab_path}")
-        # Sort by length descending to ensure longest match priority in tokenizer
-        vocab_list_sorted = sorted(vocab_list, key=len, reverse=True)
-        return vocab_list_sorted
-    except Exception as e:
-        print(f"Error loading vocabulary from {vocab_path}: {e}", file=sys.stderr)
-        return None
+import traceback
+import argparse
 
 # --- Global Vocabulary ---
-# Load vocab once when the script starts
-VOCAB_SORTED = load_vocab(VOCAB_FILE)
-if VOCAB_SORTED is None:
-    print("Error: Failed to load vocabulary. Exiting.", file=sys.stderr)
-    sys.exit(1) # Exit if vocab is essential and failed to load
+VOCAB_SORTED = None
 
 
-# --- Tokenizer Function (Greedy, Vocab-Based) ---
+def setup_logging(output_dir):
+    """Sets up logging to file and console."""
+    output_dir.mkdir(parents=True, exist_ok=True)
+    log_filename = output_dir / f"tokenization_log_{time.strftime('%Y%m%d_%H%M%S')}.log"
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(asctime)s - %(levelname)s - %(message)s',
+        handlers=[
+            logging.FileHandler(log_filename, mode='w', encoding='utf-8'),
+            logging.StreamHandler()
+        ]
+    )
+    return logging.getLogger()
+
+
+def load_vocab(vocab_path):
+    """Loads vocabulary from a file and sorts it by length, descending."""
+    global VOCAB_SORTED
+    if not vocab_path.is_file():
+        logging.error(f"Vocabulary file not found: {vocab_path}")
+        return False
+    try:
+        with open(vocab_path, 'r', encoding='utf-8') as f:
+            vocab_list = [line.strip() for line in f if line.strip()]
+        VOCAB_SORTED = sorted(vocab_list, key=len, reverse=True)
+        logging.info(f"Loaded {len(VOCAB_SORTED)} tokens from {vocab_path}")
+        return True
+    except Exception as e:
+        logging.error(f"Error loading vocabulary from {vocab_path}: {e}", exc_info=True)
+        return False
+
+
 def tokenize_smiles_by_vocab(smiles, vocab_sorted):
-    """Tokenizes a SMILES string using a pre-sorted vocabulary list (longest first)."""
-    if not isinstance(smiles, str): return [] # Handle non-string input
-    if not smiles: return [] # Handle empty string
+    """Performs greedy tokenization using a pre-loaded, sorted vocabulary."""
+    if not isinstance(smiles, str) or not smiles: return []
 
     tokens = []
     idx = 0
@@ -53,165 +52,120 @@ def tokenize_smiles_by_vocab(smiles, vocab_sorted):
 
     while idx < smiles_len:
         match_found = False
-        # Iterate through sorted vocab (longest tokens first)
+        # Attempt to match the longest possible token from the vocabulary
         for token in vocab_sorted:
-            token_len = len(token)
-            # Check bounds and if the token matches at the current position
-            if idx + token_len <= smiles_len and smiles[idx : idx + token_len] == token:
+            if smiles.startswith(token, idx):
                 tokens.append(token)
-                idx += token_len
+                idx += len(token)
                 match_found = True
-                break # Found the longest possible match, move to next position
+                break
 
-        # Fallback: If no token from vocab matches, treat the current character as a single token
+        # Fallback: if no token matches, treat the current character as a single token
         if not match_found:
             unknown_char = smiles[idx]
-            # print(f"Debug: Character '{unknown_char}' at index {idx} in '{smiles}' not found in vocab. Treating as single token.", file=sys.stderr)
             tokens.append(unknown_char)
             idx += 1
-
-    # --- Verification (Optional but Recommended) ---
-    reconstructed_smiles = "".join(tokens)
-    if reconstructed_smiles != smiles:
-        # This warning usually indicates an incomplete vocabulary or tokenizer bug
-        print(f"Warning: Tokenization verification failed!", file=sys.stderr)
-        print(f"Original:      '{smiles}'", file=sys.stderr)
-        print(f"Tokens:        {tokens}", file=sys.stderr)
-        print(f"Reconstructed: '{reconstructed_smiles}'", file=sys.stderr)
-        # Depending on severity, you might want to handle this differently
 
     return tokens
 
 
-# --- File Processing Function for Multiprocessing ---
 def process_file_tokenization(args):
-    """Reads a file, tokenizes each line, and writes the tokenized output."""
-    file_path_str, input_dir_str, output_dir_str = args
+    """Worker function to read, tokenize, and write a single file."""
+    file_path_str, input_dir_str, output_dir_str, vocab_shared = args
     file_path = Path(file_path_str)
     input_dir = Path(input_dir_str)
     output_dir = Path(output_dir_str)
 
     try:
-        # Determine output path, preserving relative structure
         relative_path = file_path.relative_to(input_dir)
         output_path = output_dir / relative_path
-        output_folder = output_path.parent
-        output_folder.mkdir(parents=True, exist_ok=True) # Create output folder if needed
+        output_path.parent.mkdir(parents=True, exist_ok=True)
 
         tokenized_lines = []
-        processed_count = 0
-        error_count = 0
-        # print(f"Tokenizing file: {file_path.name}") # Can be verbose with many files
-
-        # Read all lines at once for potentially faster processing
         with open(file_path, 'r', encoding='utf-8') as f_in:
             lines = f_in.readlines()
 
-        # Tokenize each line
-        # Add tqdm here if individual file processing is slow and needs progress
-        # for line in tqdm(lines, desc=f"Tokenizing {file_path.name}", leave=False):
         for line in lines:
             smiles = line.strip()
             if smiles:
-                try:
-                    tokens = tokenize_smiles_by_vocab(smiles, VOCAB_SORTED) # Use pre-loaded vocab
-                    if tokens:
-                        tokenized_line = ' '.join(tokens) # Join tokens with space
-                        tokenized_lines.append(tokenized_line)
-                        processed_count += 1
-                    # else: # Tokenizer might return empty list for valid reasons
-                        # print(f"Warning: Tokenizer returned empty tokens for SMILES: '{smiles}' in {file_path.name}", file=sys.stderr)
-                except Exception as e:
-                    print(f"Error tokenizing SMILES '{smiles}' in {file_path.name}: {e}", file=sys.stderr)
-                    error_count += 1
+                tokens = tokenize_smiles_by_vocab(smiles, vocab_shared)
+                if tokens:
+                    # Use space as the delimiter for OpenNMT input format
+                    tokenized_lines.append(' '.join(tokens))
 
-        # Write tokenized lines to the output file
         if tokenized_lines:
             with open(output_path, 'w', encoding='utf-8') as f_out:
-                f_out.write('\n'.join(tokenized_lines))
-            # Return status message
-            status = f"Tokenized {processed_count} lines from {file_path.name} -> {output_path.name}"
-            if error_count > 0: status += f" ({error_count} errors)"
-            return status
-        else:
-            status = f"No lines tokenized or written for {file_path.name}"
-            if error_count > 0: status += f" ({error_count} errors)"
-            return status
+                f_out.write('\n'.join(tokenized_lines) + '\n')
+
+        return {'file_name': file_path.name, 'lines_processed': len(lines), 'success': True}
 
     except Exception as e:
-        print(f"Error processing file {file_path}: {e}", file=sys.stderr)
-        return f"FAILED processing {file_path.name}: {e}"
+        return {'file_name': file_path.name, 'error_info': str(e) + '\n' + traceback.format_exc(), 'success': False}
 
 
-# --- Main Function ---
+def get_args():
+    """Gets command-line arguments."""
+    parser = argparse.ArgumentParser(description="Tokenizes SMILES files based on a shared vocabulary.")
+    parser.add_argument("--data_dir", type=str, required=True,
+                        help="Directory containing the split data files (*-src.txt, *-tgt.txt).")
+    parser.add_argument("--vocab_file", type=str, required=True, help="Path to the shared vocabulary file.")
+    parser.add_argument("--output_dir", type=str, required=True, help="Directory to save the tokenized output files.")
+    parser.add_argument("--processes", type=int, default=cpu_count(), help="Number of CPU processes to use.")
+    return parser.parse_args()
+
+
 def main():
-    # Use configured paths
-    input_dir = INPUT_DIR
-    output_dir = OUTPUT_DIR
-    output_dir.mkdir(parents=True, exist_ok=True) # Ensure output dir exists
+    """Main function to orchestrate the tokenization process."""
+    args = get_args()
+    output_dir = Path(args.output_dir)
+    logger = setup_logging(output_dir)
 
-    print(f"Starting SMILES tokenization.")
-    print(f"Input directory: {input_dir}")
-    print(f"Output directory: {output_dir}")
-    print(f"Vocabulary file: {VOCAB_FILE}")
-
-    if VOCAB_SORTED is None: # Double-check vocab loaded
-        print("Error: Cannot proceed without a valid vocabulary.", file=sys.stderr)
+    if not load_vocab(Path(args.vocab_file)):
         return
 
-    # Find all .src and .tgt files recursively in the input directory
-    print(f"Searching for all '.src' and '.tgt' files recursively in {input_dir}...")
-    # Use Path.glob for recursive search (requires Python 3.5+)
-    files_to_process = list(input_dir.glob('**/*.src')) + list(input_dir.glob('**/*.tgt'))
-    # You might want to use *.txt if your split files use that extension:
-    # files_to_process = list(input_dir.glob('**/*.txt'))
+    input_dir = Path(args.data_dir)
+    logger.info(f"Input data directory: {input_dir}")
+    logger.info(f"Output directory: {output_dir}")
+
+    logger.info(f"Searching for all '*-src.txt' and '*-tgt.txt' files in {input_dir}...")
+    files_to_process = list(input_dir.rglob("*-src.txt")) + list(input_dir.rglob("*-tgt.txt"))
 
     if not files_to_process:
-        print(f"Error: No '.src' or '.tgt' files found in {input_dir} (recursive search). Please check the input directory and file extensions.", file=sys.stderr)
+        logger.error(f"No source or target files found in {input_dir}.")
         return
 
-    print(f"Found {len(files_to_process)} files to tokenize.")
-    # print(f"Debug: Files to process: {[str(f) for f in files_to_process]}") # Optional debug
+    logger.info(f"Found {len(files_to_process)} files to tokenize.")
+    num_cores = min(args.processes, cpu_count())
+    logger.info(f"Using {num_cores} CPU cores for parallel processing.")
 
-    # Determine number of cores to use
-    num_cores = cpu_count()
-    print(f"Using {num_cores} CPU cores for parallel processing.")
+    file_args = [(str(file), str(input_dir), str(output_dir), VOCAB_SORTED) for file in files_to_process]
 
-    # Prepare arguments for each file processing task
-    file_args = [(str(file), str(input_dir), str(output_dir)) for file in files_to_process]
-
-    # Run tokenization in parallel using multiprocessing pool
     results = []
-    print("Starting tokenization process...")
     try:
         with Pool(processes=num_cores) as pool:
             results = list(tqdm(pool.imap(process_file_tokenization, file_args),
-                                total=len(files_to_process),
+                                total=len(files_to_process),  # <-- CORRECTED THIS LINE
                                 desc="Tokenizing files"))
     except Exception as pool_err:
-         print(f"Error: Multiprocessing pool failed: {pool_err}", file=sys.stderr)
+        logger.error(f"Multiprocessing pool error: {pool_err}", exc_info=True)
 
-
-    # Print summary of results
-    print("--- Tokenization Summary ---")
-    success_count = 0
-    fail_count = 0
+    logger.info("--- Tokenization Summary ---")
+    success_count, fail_count = 0, 0
     for result in results:
-        if result and "FAILED" not in result:
+        if result and result.get('success'):
             success_count += 1
-            # print(f"Debug: {result}") # Optional detailed success message
+            logger.info(f"  Processed {result['file_name']}: {result['lines_processed']} lines.")
         else:
             fail_count += 1
-            print(f"Error Summary: {result}", file=sys.stderr) # Print failure messages
-    print(f"Successfully processed: {success_count} files")
-    print(f"Failed to process: {fail_count} files")
-    print(f"Tokenized files saved in: {output_dir}")
-    print("Tokenization script finished.")
+            logger.error(
+                f"  FAILED {result.get('file_name', 'Unknown file')}: {result.get('error_info', 'Unknown error')}")
+
+    logger.info(f"Successfully processed: {success_count} files")
+    logger.info(f"Failed to process: {fail_count} files")
+    logger.info(f"Tokenized files saved in: {output_dir}")
+    logger.info("Tokenization script finished.")
 
 
 if __name__ == "__main__":
-    # Ensure INPUT_DIR, OUTPUT_DIR, and VOCAB_FILE are correctly set in Configuration
-    try:
-        main()
-    except Exception as e:
-        print(f"An error occurred in the main execution block: {e}", file=sys.stderr)
+    main()
+
