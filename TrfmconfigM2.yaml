@@ -13,6 +13,7 @@ data:
     corpus_1:
         path_src: ./token(-CF2-)/train_m2_src.txt
         path_tgt: ./token(-CF2-)/train_m2_tgt.txt
+        # weight: 7     Class weighting parameter
     corpus_2:
         path_src: ./token(-CF2H)/train_m2_src.txt
         path_tgt: ./token(-CF2H)/train_m2_tgt.txt
