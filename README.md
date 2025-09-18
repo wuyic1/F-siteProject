@@ -136,16 +136,30 @@ onmt_train -config ./TrfmconfigM1.yaml -train_from ./model-directory/model_step_
 
 #### Inference
 
-Run predictions using the trained models:
+Run inference using the trained models:
 
 ```bash
 onmt_translate -model ./model-directory/model_step_100000.pt \
                -src ./output/Test-src.txt \
                -output ./output/Test-pred.txt \
                -gpu 0 \
-               -n_best 3 \
-               -beam_size 3 \
+               -n_best 5 \
+               -beam_size 5 \
                -verbose
 ```
 
-This command performs site prediction (Stage 1) and molecular reconstruction with fluorinated groups (Stage 2), based on your test input.
+This command performs site prediction (Stage 1) and molecular reconstruction with fluorinated groups (Stage 2), based on the test input.
+
+#### Ensemble Models at Inference
+
+If you want to achieve better inference accuracy, you can consider the ensemble models and run the following command:
+
+```bash
+onmt_translate -model ./model1_seed1 model2_seed2 model3_seed3 \
+               -src ./output/Test-src.txt \
+               -output ./output/Test-pred.txt \
+               -gpu 0 \
+               -n_best 5 \
+               -beam_size 5 \
+               -verbose
+```
