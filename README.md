@@ -134,7 +134,7 @@ onmt_train -config ./TrfmconfigM1.yaml -train_from ./model-directory/model_step_
 
 ---
 
-#### Predictions
+#### Inference
 
 Run predictions using the trained models:
 
