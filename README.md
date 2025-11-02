@@ -120,9 +120,9 @@ python Data_split.py \
 Train the F-site model using Transformer configurations:
 
 ```bash
-# Training Stage 1 model
+# Training Stage I model
 onmt_train -config ./TrfmconfigM1.yaml
-# Training Stage 2 model
+# Training Stage II model
 onmt_train -config ./TrfmconfigM2.yaml
 ```
 
@@ -144,11 +144,11 @@ onmt_translate -model ./model-directory/model_step_100000.pt \
                -output ./output/Test-pred.txt \
                -gpu 0 \
                -n_best 5 \
-               -beam_size 5 \
+               -beam_size 7 \
                -verbose
 ```
 
-This command performs site prediction (Stage 1) and molecular reconstruction with fluorinated groups (Stage 2), based on the test input.
+This command performs site prediction (Stage I) and molecular reconstruction with fluorinated groups (Stage II), based on the test input.
 
 #### Ensemble Models at Inference
 
@@ -160,6 +160,6 @@ onmt_translate -model ./model1_seed1 model2_seed2 model3_seed3 \
                -output ./output/Test-pred.txt \
                -gpu 0 \
                -n_best 5 \
-               -beam_size 5 \
+               -beam_size 7 \
                -verbose
 ```
