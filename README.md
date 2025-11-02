@@ -1,6 +1,6 @@
 ## F-site: Recognizing Fluorination Patterns in Small-molecule Drugs via Two-Stage Transformer-based Model
 
-This repository contains code and instructions for training and using the F-site model, which is a Transformer-based molecular fluorine modification model used to predict the fluorine substitution points of small molecule compounds.
+This repository contains code and instructions for training and using the F-site model, which is a Transformer-based molecular fluorine modification model used to predict the fluorine substitution sites of small-molecule compounds.
 
 ![F-site Model Illustration](./image/F-site_Model.png)
 
